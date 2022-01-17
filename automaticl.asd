@@ -8,7 +8,10 @@
   :depends-on (#:alexandria
                #:uiop
                #:serapeum
-               )
+               #:fwoar-lisputils
+               #:yason
+               #:drakma
+               #:cl-js)
   :serial t
-  :components ((:file "matrix.lisp")
-               ))
+  :components ((:file "package")
+               (:file "matrix")))

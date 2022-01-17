@@ -1,7 +1,4 @@
-(defpackage :fwoar.lisp-sandbox.matrix
-  (:use :cl )
-  (:export ))
-(in-package :fwoar.lisp-sandbox.matrix)
+(in-package :automaticl)
 
 (defvar *matrix-host*)
 
@@ -152,31 +149,6 @@
 (defun eval-js (message)
   (cl-js:run-js (evaluable-code-block (find-code-block *))))
 
-#+(or)
-(loop (with-rooms (room room-id) (funcall *syncer*)
-        (funcall (data-lens:• (data-lens:over
-                               (lambda (it)
-                                 (let ((maybe-js-result (fw.lu:may
-                                                            (cl-js:run-js
-                                                             (evaluable-code-block
-                                                              (find-code-block
-                                                               (data-lens.lenses:view +message-content-lens+ it)))))))
-                                   (when maybe-js-result
-                                     (send-message +access-token+
-                                                   room-id
-                                                   "m.room.message"
-                                                   (monotonic-txid)
-                                                   (plaintext-message (prin1-to-string maybe-js-result)))))))
-                              (data-lens:include (data-lens:on (data-lens:• 'evaluable-code-block
-                                                                            'find-code-block)
-                                                               (lambda (it)
-                                                                 (data-lens.lenses:view +message-content-lens+
-                                                                                        it))))
-                              (data-lens:include (data-lens:on (data-lens:== "m.room.message" :test 'equal)
-                                                               (data-lens:key "type"))))
-                 (data-lens.lenses:view +timeline-events-lens+ room)))
-      (sleep 1))
-
 (defclass room-sync (fw.lu:hashtable-slot-mixin)
   ((state :reader state)
    (summary :reader summary)
@@ -202,39 +174,3 @@
                           (lambda (it)
                             (make-instance 'timeline-event :doc it)))
                          (call-next-method)))
-
-#+(or)
-#(hash-table "state": #(hash-table "events": (#(hash-table "type": "co.fwoar.testing",
-                                                "sender": "@xxx:xx.xx",
-                                                "content": #(hash-table "bar": 23,
-                                                             "baz": 404,
-                                                             "foo": 2),
-                                                "event_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                                                "unsigned": #(hash-table "age": 5984230),
-                                                "state_key": "the_state_key4",
-                                                "origin_server_ts": 1642210653378))),
-  "summary": #(hash-table),
-  "timeline": #(hash-table "events": (#(hash-table "type": "m.room.message",
-                                        "sender": "@xxx:xx.xx",
-                                        "content": #(hash-table "body": "xxxxxxx xxxx xxx xxxxxxx",
-                                                     "msgtype": "m.text"),
-                                        "event_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                                        "unsigned": #(hash-table "age": 5120086),
-                                        "origin_server_ts": 1642211517522)),
-                "limited": T,
-                "prev_batch": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
-  "ephemeral": #(hash-table "events": (#(hash-table "type": "m.typing",
-                                         "content": #(hash-table "user_ids": NIL))
-                                       #(hash-table "type": "m.receipt",
-                                         "content": #(hash-table "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": #(hash-table "m.read": #(hash-table "@xxx:xx.xx": #(hash-table "ts": 1642211577072,
-                                                                                                                                                                     "hidden": NIL))),
-                                                      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": #(hash-table "m.read": #(hash-table "@xxx:xx.xx": #(hash-table "ts": 1642211586525,
-                                                                                                                                                          "hidden": NIL),
-                                                                                                                               "@xxx:xx.xx": #(hash-table "ts": 1642214183951,
-                                                                                                                                               "hidden": NIL),
-                                                                                                                               "@xxx:xx.xx": #(hash-table "ts": 1642211584953,
-                                                                                                                                               "hidden": NIL))))))),
-  "account_data": #(hash-table "events": NIL),
-  "unread_notifications": #(hash-table "highlight_count": 0,
-                            "notification_count": 118),
-  "org.matrix.msc2654.unread_count": 113)
