@@ -1,4 +1,4 @@
-(in-package :automaticl)
+(in-package :automatricl)
 
 (defvar *matrix-host*)
 

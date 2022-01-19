@@ -1,7 +1,7 @@
-(defpackage :automaticl.package
+(defpackage :automatricl.package
   (:import-from :cl :defpackage :in-package))
-(in-package :automaticl.package)
+(in-package :automatricl.package)
 
-(defpackage :automaticl
+(defpackage :automatricl
   (:use :cl)
-  (:export ))
+  (:export))
