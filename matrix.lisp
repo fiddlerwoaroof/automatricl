@@ -1,17 +1,115 @@
 (in-package :automatricl)
 
 (defvar *matrix-host*)
+(defvar *matrix-password*)
 
-(defun matrix-sync (homeserver-prefix access-token &optional (since nil since-p))
-  (yason:parse
-   (let ((drakma:*text-content-types* (acons "application" "json"
-                                             drakma:*text-content-types*)))
-     (drakma:http-request
-      (if since-p
-          (format nil "~a/sync?since=~a" homeserver-prefix since)
-          (format nil "~a/sync" homeserver-prefix))
-      :additional-headers
-      `(("Authorization" . ,(format nil "Bearer ~a" access-token)))))))
+#+(or)
+(defun fwoar/tmp/access-token ()
+  (let ((url-request-method "POST")
+        (url-request-data (json-encode-alist
+                           `((type . "m.login.password")
+                             (identifier . ((type . "m.id.user")
+                                            (user . "el-bot")))
+                             (password . ,(fwoar/tmp/get-password)))))
+        (url-request-extra-headers '(("Content-Type" . "application/json"))))
+    (with-current-buffer (url-retrieve-synchronously "https://m.edw.ai/_matrix/client/r0/login")
+      (goto-char (point-min))
+      (forward-paragraph)
+      (gethash "access_token" (json-parse-string (buffer-substring (point) (point-max)))))))
+
+(defun uid (username)
+  (alexandria:alist-hash-table
+   `(("type" . "m.id.user")
+     ("user" . ,username))))
+
+(defun login-body (username password)
+  (alexandria:alist-hash-table
+   `(("type" . "m.login.password")
+     ("identifier" . ,(uid username))
+     ("password" . ,password))))
+
+(defmacro with-json-output ((s &key indent) &body body)
+  `(let ((,s (yason:make-json-output-stream s :indent ,indent)))
+     ,@body))
+
+(defun json-string (v)
+  (with-output-to-string (s)
+    (with-json-output (s)
+      (yason:encode v s))))
+
+(defun merge-matrix-api (host path)
+  (let ((base (make-instance 'puri:uri :scheme :https
+                                       :host host
+                                       :path "/_matrix/client/r0/")))
+    (puri:merge-uris (if (alexandria:starts-with #\/ path)
+                         (subseq path 1)
+                         path)
+                     base)))
+
+(defun auth-header (creds)
+  `("Authorization" . ,(format nil
+                               "Bearer ~a"
+                               (access-token creds))))
+
+(defun matrix-request (uri creds
+                       &key
+                         (content nil content-p)
+                         (method (if content-p :post :get)))
+  (let ((drakma:*text-content-types* (acons "application" "json"
+                                            drakma:*text-content-types*))
+        (auth-header (list (auth-header creds))))
+    (yason:parse
+     (if content-p
+         (drakma:http-request uri
+                              :method method
+                              :additional-headers auth-header
+                              :content-type "application/json"
+                              :content content)
+         (drakma:http-request uri
+                              :method method
+                              :additional-headers auth-header)))))
+
+(fw.lu:defclass+ creds ((fw.lu:hashtable-slot-mixin (doc)))
+  ((user-id :reader user-id)
+   (device-id :reader device-id)
+   (home-server :reader home-server)
+   (access-token :reader access-token)))
+
+(defun login (host username password)
+  (let ((drakma:*text-content-types* (acons "application" "json"
+                                            drakma:*text-content-types*)))
+    (creds
+     (yason:parse
+      (drakma:http-request (merge-matrix-api host "/login")
+                           :method :post
+                           :content-type "application/json"
+                           :content (json-string
+                                     (login-body username password)))))))
+
+(defun matrix-sync (host creds &optional (since nil since-p))
+  (matrix-request (merge-matrix-api host
+                                    (if since-p
+                                        (format nil "/sync?since=~a" since)
+                                        (format nil "/sync")))
+                  creds))
+
+(fw.lu:defclass+ syncer ()
+  ((%since :accessor since :initform nil)
+   (%sync-cont :reader sync-cont :initform nil)))
+(defgeneric start-sync (syncer host creds)
+  (:method ((syncer syncer) host creds)
+    (unless (sync-cont syncer)
+      (funcall
+       (setf (slot-value syncer '%sync-cont)
+             (lambda ()
+               (fw.lu:prog1-bind (r (if (since syncer)
+                                        (matrix-sync host creds (since syncer))
+                                        (matrix-sync host creds)))
+                 (setf (since syncer) (gethash "next_batch" r)))))))))
+
+(defgeneric tick (syncer)
+  (:method ((syncer syncer))
+    (funcall (sync-cont syncer))))
 
 (fw.lu:defclass+ plaintext-message ()
   ((body :initarg :body :reader body)))
@@ -146,6 +244,7 @@
                     (lambda (,room-sym ,room-id-sym)
                       ,@body)))
 
+#+(or)
 (defun eval-js (message)
   (cl-js:run-js (evaluable-code-block (find-code-block *))))
 
